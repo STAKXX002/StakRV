@@ -7,7 +7,7 @@
 namespace stakrv {
 
 constexpr uint32_t MEM_SIZE   = 1 * 1024 * 1024; // 1MB
-constexpr uint32_t MEM_BASE   = 0x80000000;       // where we load the binary
+constexpr uint32_t MEM_BASE   = 0x80000000;      // where we load the binary
 constexpr uint32_t REG_COUNT  = 32;
 
 class CPU {
@@ -17,11 +17,8 @@ public:
     // load a flat binary into memory at MEM_BASE
     bool load(const std::string& path);
 
-    // run until EBREAK or error
+    // start the interactive TUI loop
     void run();
-
-    // dump all registers to stdout
-    void dump_regs() const;
 
 private:
     uint32_t              pc_;
@@ -51,10 +48,9 @@ private:
     void exec_op       (uint32_t inst);
     void exec_system   (uint32_t inst);
 
-    // register write — enforces x0 == 0
-    inline void wreg(uint32_t rd, uint32_t val) {
-        if (rd != 0) regs_[rd] = val;
-    }
+    // TUI Methods
+    void render_dashboard(bool paused, int delay_ms);
+    std::string disassemble(uint32_t inst) const; 
 };
 
 } // namespace stakrv
