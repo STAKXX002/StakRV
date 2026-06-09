@@ -289,55 +289,78 @@ void CPU::dump_regs() const {
         "s8",  "s9",  "s10", "s11", "t3",  "t4",  "t5",  "t6"
     };
 
-    std::cout << "\n" << BOLD << "  registers" << RESET
-              << DIM << " ────────────────────────────────────────────────────" << RESET << "\n";
+    std::cout << "\n" << DIM << " ╭─── " << RESET << BOLD << "CPU STATE" << RESET
+              << DIM << " ───────────────────────────────────────────────────╮" << RESET << "\n";
 
     for (int i = 0; i < 32; i += 2) {
+        std::cout << DIM << " │" << RESET;
         for (int j = 0; j < 2; ++j) {
             int idx = i + j;
-            bool nz  = (regs_[idx] != 0);
-            bool is_a = (idx >= 10 && idx <= 17); // argument regs
-            bool is_s = (idx == 1 || idx == 2);   // ra, sp
+            bool nz   = (regs_[idx] != 0);
+            bool is_a = (idx >= 10 && idx <= 17);
+            bool is_s = (idx == 1 || idx == 2);  
 
-            // register name + index
-            std::cout << "  "
+            std::cout << " " 
                       << (nz ? (is_a ? CYAN : (is_s ? YELLOW : GREEN)) : DIM)
                       << std::setw(4) << names[idx] << RESET
-                      << DIM << " x" << std::setw(2) << std::setfill('0') << idx
-                      << std::setfill(' ') << RESET
+                      << DIM << " x" << std::setw(2) << std::setfill('0') << idx << std::setfill(' ') << RESET
                       << "  ";
 
-            // value
             if (nz) {
                 std::cout << (is_a ? CYAN : (is_s ? YELLOW : GREEN))
                           << "0x" << std::hex << std::setw(8) << std::setfill('0')
-                          << regs_[idx] << std::setfill(' ') << std::dec
-                          << RESET;
+                          << regs_[idx] << std::dec << std::setfill(' ') << RESET;
             } else {
                 std::cout << DIM << "0x00000000" << RESET;
             }
 
-            // decimal hint — fixed 8-char wide slot so columns stay aligned
             if (nz && regs_[idx] < 0x10000 && idx != 2) {
                 std::string hint = "(" + std::to_string(regs_[idx]) + ")";
-                std::cout << DIM << " " << std::setw(7) << std::left
-                          << hint << std::right << RESET;
+                std::cout << DIM << " " << std::setw(9) << std::left << hint << std::right << RESET;
             } else {
-                std::cout << "        "; // 8 spaces
+                std::cout << "          "; // exactly 10 spaces
             }
 
-            std::cout << (j == 0 ? "  " : "\n");
+            if (j == 0) std::cout << DIM << " │" << RESET;
         }
+        std::cout << DIM << " │" << RESET << "\n";
     }
 
-    // PC line
-    std::cout << "\n  "
-              << BOLD << "      pc" << RESET
-              << DIM  << " ---" << RESET
-              << "  "
-              << BOLD << CYAN << "0x" << std::hex << std::setw(8)
-              << std::setfill('0') << pc_ << std::dec << std::setfill(' ')
-              << RESET << "\n\n";
+    std::cout << DIM << " ├─────────────────────────────────────────────────────────────────┤" << RESET << "\n";
+
+    uint32_t inst = 0;
+    bool inst_ok = false;
+    try { inst = mem_read32(pc_); inst_ok = true; } catch(...) {} 
+    
+    std::cout << DIM << " │" << RESET << BOLD << "    pc" << RESET
+              << DIM  << " ---  " << RESET
+              << BOLD << CYAN << "0x" << std::hex << std::setw(8) << std::setfill('0') << pc_ << std::dec << std::setfill(' ') << RESET;
+    
+    if (inst_ok) {
+        std::cout << DIM << "  [0x" << std::hex << std::setw(8) << std::setfill('0') << inst << std::dec << std::setfill(' ') << "]" << RESET;
+    } else {
+        std::cout << DIM << "  [??????????]" << RESET;
+    }
+    
+    std::cout << "                             " << DIM << "│" << RESET << "\n"; 
+
+    std::cout << DIM << " ├─── " << RESET << BOLD << "STACK PEEK" << RESET 
+              << DIM << " ──────────────────────────────────────────────────┤" << RESET << "\n";
+
+    uint32_t current_sp = regs_[2];
+    for (int i = 0; i < 4; ++i) {
+        uint32_t addr = current_sp + (i * 4);
+        std::cout << DIM << " │  0x" << std::hex << std::setw(8) << std::setfill('0') << addr << std::dec << std::setfill(' ') << " │ " << RESET;
+        try {
+            uint32_t val = mem_read32(addr);
+            std::cout << CYAN << "0x" << std::hex << std::setfill('0') << std::setw(8) << val << std::dec << std::setfill(' ') << RESET;
+        } catch (...) {
+            std::cout << DIM << "??????????" << RESET;
+        }
+        std::cout << "                                        " << DIM << "│" << RESET << "\n";
+    }
+
+    std::cout << DIM << " ╰─────────────────────────────────────────────────────────────────╯" << RESET << "\n\n";
 }
 
 } // namespace stakrv
