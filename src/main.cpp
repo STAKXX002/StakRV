@@ -12,8 +12,9 @@ int main(int argc, char* argv[]) {
 
     if (!cpu.load(argv[1])) return 1;
 
-    cpu.run();
-    cpu.dump_regs();
+    // Run now starts the interactive TUI loop
+    cpu.run(); 
 
+    // REMOVE cpu.dump_regs(); from here
     return 0;
 }
