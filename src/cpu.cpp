@@ -11,6 +11,7 @@
 #include <sstream>
 #include <thread>
 #include <chrono>
+#include <sys/ioctl.h>
 
 namespace stakrv {
 
@@ -275,6 +276,13 @@ static int get_char_non_blocking() {
     return -1;
 }
 
+static void get_terminal_size(int& rows, int& cols) {
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    rows = w.ws_row;
+    cols = w.ws_col;
+}
+
 // ── TUI Run Loop & Rendering ──────────────────────────────────────────────────
 
 void CPU::run() {
@@ -339,10 +347,21 @@ void CPU::run() {
 }
 
 void CPU::render_dashboard(bool paused, int delay_ms) {
+    int rows, cols;
+    get_terminal_size(rows, cols);
+
+    if (cols < 106 || rows < 28) {
+        std::cout << "\033[H\033[2J"; // Clear screen and move to top
+        std::cout << "\033[1;31m[!] Terminal window is too small.\033[0m\n\n";
+        std::cout << "Required : 106 cols x 28 rows\n";
+        std::cout << "Current  : " << cols << " cols x " << rows << " rows\n\n";
+        std::cout << "Please expand your terminal window to resume.\n";
+        std::cout << "(Press 'Q' to quit)\033[J\n" << std::flush;
+        return; // Abort the rest of the render
+    }
+
     std::stringstream ss;
-    
-    // Move cursor to top-left (0,0)
-    ss << "\033[H"; 
+    ss << "\033[H";
 
     // ANSI Colors
     static constexpr const char* DIM    = "\033[2m";
