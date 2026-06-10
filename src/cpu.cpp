@@ -492,23 +492,116 @@ void CPU::render_dashboard(bool paused, int delay_ms) {
 }
 
 std::string CPU::disassemble(uint32_t inst) const {
-    if (inst == 0) return "NOP / INVALID";
-    
-    uint32_t op = opcode(inst);
-    
-    switch(op) {
-        case 0x37: return "LUI";
-        case 0x17: return "AUIPC";
-        case 0x6F: return "JAL";
-        case 0x67: return "JALR";
-        case 0x63: return "BRANCH";
-        case 0x03: return "LOAD";
-        case 0x23: return "STORE";
-        case 0x13: return "OP-IMM";
-        case 0x33: return "OP";
-        case 0x73: return "SYSTEM / EBREAK";
-        default:   return "UNKNOWN";
+    if (inst == 0x00000013) return "nop";
+
+    auto reg = [](uint32_t n) -> std::string {
+        static const char* names[32] = {
+            "zero","ra","sp","gp","tp","t0","t1","t2",
+            "s0","s1","a0","a1","a2","a3","a4","a5",
+            "a6","a7","s2","s3","s4","s5","s6","s7",
+            "s8","s9","s10","s11","t3","t4","t5","t6"
+        };
+        return names[n & 31];
+    };
+
+    char buf[48];
+
+    uint32_t o  = opcode(inst);
+    uint32_t d  = rd(inst), a = rs1(inst), b = rs2(inst);
+    int32_t  ii = imm_i(inst);
+    bool     alt = (funct7(inst) == 0x20);
+
+    switch (o) {
+    case 0x37: // LUI
+        snprintf(buf, sizeof(buf), "lui %s, %d", reg(d).c_str(), imm_u(inst) >> 12);
+        return buf;
+    case 0x17: // AUIPC
+        snprintf(buf, sizeof(buf), "auipc %s, %d", reg(d).c_str(), imm_u(inst) >> 12);
+        return buf;
+    case 0x6F: { // JAL
+        int32_t off = imm_j(inst);
+        if (d == 0) { snprintf(buf, sizeof(buf), "j %d",   off); return buf; }
+        if (d == 1) { snprintf(buf, sizeof(buf), "jal %d", off); return buf; }
+        snprintf(buf, sizeof(buf), "jal %s, %d", reg(d).c_str(), off);
+        return buf;
     }
+    case 0x67: // JALR
+        if (d == 0 && a == 1 && ii == 0) return "ret";
+        if (d == 0 && ii == 0) { snprintf(buf, sizeof(buf), "jr %s", reg(a).c_str()); return buf; }
+        snprintf(buf, sizeof(buf), "jalr %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii);
+        return buf;
+    case 0x63: { // BRANCH
+        int32_t off = imm_b(inst);
+        static const char* bnames[] = {"beq","bne","?","?","blt","bge","bltu","bgeu"};
+        uint32_t f = funct3(inst);
+        if ((f == 0 || f == 1) && b == 0) {
+            snprintf(buf, sizeof(buf), "%sz %s, %d", f == 0 ? "beq" : "bne", reg(a).c_str(), off);
+            return buf;
+        }
+        snprintf(buf, sizeof(buf), "%s %s, %s, %d", bnames[f], reg(a).c_str(), reg(b).c_str(), off);
+        return buf;
+    }
+    case 0x03: { // LOAD
+        static const char* lnames[] = {"lb","lh","lw","?","lbu","lhu"};
+        snprintf(buf, sizeof(buf), "%s %s, %d(%s)", lnames[funct3(inst)], reg(d).c_str(), ii, reg(a).c_str());
+        return buf;
+    }
+    case 0x23: { // STORE
+        static const char* snames[] = {"sb","sh","sw"};
+        int32_t si = imm_s(inst);
+        snprintf(buf, sizeof(buf), "%s %s, %d(%s)", snames[funct3(inst)], reg(b).c_str(), si, reg(a).c_str());
+        return buf;
+    }
+    case 0x13: { // OP-IMM
+        uint32_t shamt = (uint32_t)ii & 0x1F;
+        switch (funct3(inst)) {
+        case 0: // ADDI + pseudos
+            if (a == 0) { snprintf(buf, sizeof(buf), "li %s, %d", reg(d).c_str(), ii); return buf; }
+            if (ii == 0) { snprintf(buf, sizeof(buf), "mv %s, %s", reg(d).c_str(), reg(a).c_str()); return buf; }
+            snprintf(buf, sizeof(buf), "addi %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        case 1: snprintf(buf, sizeof(buf), "slli %s, %s, %d", reg(d).c_str(), reg(a).c_str(), shamt); return buf;
+        case 2: snprintf(buf, sizeof(buf), "slti %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        case 3:
+            if (ii == 1) { snprintf(buf, sizeof(buf), "seqz %s, %s", reg(d).c_str(), reg(a).c_str()); return buf; }
+            snprintf(buf, sizeof(buf), "sltiu %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        case 4:
+            if (ii == -1) { snprintf(buf, sizeof(buf), "not %s, %s", reg(d).c_str(), reg(a).c_str()); return buf; }
+            snprintf(buf, sizeof(buf), "xori %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        case 5:
+            snprintf(buf, sizeof(buf), "%s %s, %s, %d", alt ? "srai" : "srli", reg(d).c_str(), reg(a).c_str(), shamt);
+            return buf;
+        case 6: snprintf(buf, sizeof(buf), "ori %s, %s, %d",  reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        case 7: snprintf(buf, sizeof(buf), "andi %s, %s, %d", reg(d).c_str(), reg(a).c_str(), ii); return buf;
+        }
+        break;
+    }
+    case 0x33: { // OP
+        bool mul = (funct7(inst) == 0x01);
+        static const char* rnames[]  = {"add","sll","slt","sltu","xor","srl","or","and"};
+        static const char* mnames[]  = {"mul","mulh","mulhsu","mulhu","div","divu","rem","remu"};
+        uint32_t f = funct3(inst);
+        if (mul) {
+            snprintf(buf, sizeof(buf), "%s %s, %s, %s", mnames[f], reg(d).c_str(), reg(a).c_str(), reg(b).c_str());
+            return buf;
+        }
+        if (f == 0 && alt) { // SUB
+            if (a == 0) { snprintf(buf, sizeof(buf), "neg %s, %s", reg(d).c_str(), reg(b).c_str()); return buf; }
+            snprintf(buf, sizeof(buf), "sub %s, %s, %s", reg(d).c_str(), reg(a).c_str(), reg(b).c_str());
+            return buf;
+        }
+        if (f == 5 && alt) {
+            snprintf(buf, sizeof(buf), "sra %s, %s, %s", reg(d).c_str(), reg(a).c_str(), reg(b).c_str());
+            return buf;
+        }
+        // mv pseudo via add
+        if (f == 0 && b == 0) { snprintf(buf, sizeof(buf), "mv %s, %s", reg(d).c_str(), reg(a).c_str()); return buf; }
+        snprintf(buf, sizeof(buf), "%s %s, %s, %s", rnames[f], reg(d).c_str(), reg(a).c_str(), reg(b).c_str());
+        return buf;
+    }
+    case 0x73:
+        return (ii == 0) ? "ecall" : "ebreak";
+    }
+    return "???";
 }
 
 } // namespace stakrv
