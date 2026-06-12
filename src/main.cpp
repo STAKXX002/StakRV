@@ -1,4 +1,5 @@
 #include "cpu.hpp"
+#include "tui.hpp"
 #include <iostream>
 
 int main(int argc, char* argv[]) {
@@ -9,12 +10,10 @@ int main(int argc, char* argv[]) {
     }
 
     stakrv::CPU cpu;
-
     if (!cpu.load(argv[1])) return 1;
 
-    // Run now starts the interactive TUI loop
-    cpu.run(); 
+    stakrv::TUI tui(cpu);
+    tui.run();
 
-    // REMOVE cpu.dump_regs(); from here
     return 0;
 }
