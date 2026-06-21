@@ -17,7 +17,9 @@ public:
     // Load a flat binary into memory at MEM_BASE.
     bool load(const std::string& path);
 
-    // Single fetch-decode-execute cycle. Returns false to request a halt.
+    // Single fetch-decode-execute cycle. Throws std::runtime_error to signal
+    // a halt (ECALL/EBREAK, an out-of-bounds access, or an unknown/
+    // unimplemented instruction). Always returns true otherwise.
     bool step();
 
     // Read-only accessors for the TUI.

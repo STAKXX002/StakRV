@@ -64,7 +64,7 @@ bool CPU::load(const std::string& path) {
 
 bool CPU::peek32(uint32_t addr, uint32_t& out) const {
     uint32_t off = addr - MEM_BASE;
-    if (off + 4 > MEM_SIZE) return false;
+    if (off > MEM_SIZE - 4) return false;
     std::memcpy(&out, &mem_[off], 4);
     return true;
 }
@@ -73,13 +73,13 @@ bool CPU::peek32(uint32_t addr, uint32_t& out) const {
 
 uint32_t CPU::mem_read32(uint32_t addr) const {
     uint32_t off = addr - MEM_BASE;
-    if (off + 4 > MEM_SIZE)
+    if (off > MEM_SIZE - 4)
         throw std::runtime_error("mem_read32 OOB @ 0x" + std::to_string(addr));
     uint32_t v; std::memcpy(&v, &mem_[off], 4); return v;
 }
 uint16_t CPU::mem_read16(uint32_t addr) const {
     uint32_t off = addr - MEM_BASE;
-    if (off + 2 > MEM_SIZE) throw std::runtime_error("mem_read16 OOB");
+    if (off > MEM_SIZE - 2) throw std::runtime_error("mem_read16 OOB");
     uint16_t v; std::memcpy(&v, &mem_[off], 2); return v;
 }
 uint8_t CPU::mem_read8(uint32_t addr) const {
@@ -89,12 +89,12 @@ uint8_t CPU::mem_read8(uint32_t addr) const {
 }
 void CPU::mem_write32(uint32_t addr, uint32_t val) {
     uint32_t off = addr - MEM_BASE;
-    if (off + 4 > MEM_SIZE) throw std::runtime_error("mem_write32 OOB");
+    if (off > MEM_SIZE - 4) throw std::runtime_error("mem_write32 OOB");
     std::memcpy(&mem_[off], &val, 4);
 }
 void CPU::mem_write16(uint32_t addr, uint16_t val) {
     uint32_t off = addr - MEM_BASE;
-    if (off + 2 > MEM_SIZE) throw std::runtime_error("mem_write16 OOB");
+    if (off > MEM_SIZE - 2) throw std::runtime_error("mem_write16 OOB");
     std::memcpy(&mem_[off], &val, 2);
 }
 void CPU::mem_write8(uint32_t addr, uint8_t val) {
@@ -198,6 +198,9 @@ void CPU::exec_op_imm(uint32_t inst) {
 }
 
 void CPU::exec_op(uint32_t inst) {
+    if (funct7(inst) == 0x01)
+        throw std::runtime_error("M-extension (mul/div) not implemented");
+
     uint32_t a     = regs_[rs1(inst)];
     uint32_t b     = regs_[rs2(inst)];
     uint32_t shamt = b & 0x1F;
