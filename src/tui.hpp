@@ -3,6 +3,7 @@
 #include "cpu.hpp"
 #include <cstdint>
 #include <array>
+#include <string>
 
 namespace stakrv {
 
@@ -21,6 +22,7 @@ private:
     std::array<int,      32> flash_ttl_{};   // frames remaining for flash
     uint64_t                 cycle_count_ = 0;
     int                      last_rd_     = -1; // register written this step
+    std::string              halt_msg_;        // reason the last step() threw, if any
 
     // ── sci-fi additions ─────────────────────────────────────────────────────
     std::array<int, 32>      heat_{};        // per-register heat counter (decays)

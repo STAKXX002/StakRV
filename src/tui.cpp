@@ -1,6 +1,7 @@
 #include "tui.hpp"
 #include "disassembler.hpp"
 
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -121,7 +122,11 @@ void TUI::run() {
             } else if (ch == 's' && paused) {
                 // Snapshot before step so we can detect changes
                 for (int i = 0; i < 32; ++i) prev_regs_[i] = cpu_.reg(i);
-                try { cpu_.step(); ++cycle_count_; } catch (...) {}
+                try {
+                    cpu_.step(); ++cycle_count_; halt_msg_.clear();
+                } catch (const std::exception& e) {
+                    halt_msg_ = e.what();
+                }
                 // Detect which registers changed and arm their flash
                 last_rd_ = -1;
                 for (int i = 1; i < 32; ++i) {
@@ -147,7 +152,9 @@ void TUI::run() {
                 try {
                     cpu_.step();
                     ++cycle_count_;
-                } catch (...) {
+                    halt_msg_.clear();
+                } catch (const std::exception& e) {
+                    halt_msg_ = e.what();
                     paused = true;
                 }
                 last_rd_ = -1;
@@ -333,7 +340,19 @@ void TUI::render(bool paused, int delay_ms) const {
     std::snprintf(status_plain, sizeof(status_plain),
                   "  %s %s | CYC: %s | PC: %s | %dms",
                   stat_icon, stat_label, cyc_buf, pc_buf, delay_ms);
-    int slen = (int)std::strlen(status_plain);
+    int base_len = (int)std::strlen(status_plain);
+
+    // Append the halt reason (if any), clamped to whatever room is left so the
+    // box border can never be pushed out of alignment regardless of message length.
+    static constexpr const char* HALT_LABEL = " | HALT: ";
+    std::string halt_text;
+    int budget = TOTAL_W - 2 - base_len - (int)std::strlen(HALT_LABEL);
+    if (!halt_msg_.empty() && budget > 3) {
+        halt_text = halt_msg_;
+        if ((int)halt_text.size() > budget)
+            halt_text = halt_text.substr(0, budget - 3) + "...";
+    }
+    int slen = base_len + (halt_text.empty() ? 0 : (int)std::strlen(HALT_LABEL) + (int)halt_text.size());
 
     ss << DIM << "│" << RESET
        << "  " << stat_color << BOLD << stat_icon << " " << stat_label << RESET
@@ -342,8 +361,11 @@ void TUI::render(bool paused, int delay_ms) const {
        << DIM << " | " << RESET
        << "PC: " << BOLD << CYAN << pc_buf << RESET
        << DIM << " | " << RESET
-       << BOLD << std::dec << delay_ms << "ms" << RESET
-       << std::string(TOTAL_W - 2 - slen, ' ')
+       << BOLD << std::dec << delay_ms << "ms" << RESET;
+    if (!halt_text.empty()) {
+        ss << DIM << " | " << RESET << RED << "HALT: " << halt_text << RESET;
+    }
+    ss << std::string(TOTAL_W - 2 - slen, ' ')
        << DIM << "│\n" << RESET;
 
     // ── section header row ────────────────────────────────────────────────────
