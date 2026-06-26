@@ -50,8 +50,8 @@ riscv64-unknown-elf-objcopy -O binary program.elf program.bin
 |-----|--------|
 | `Space` / `p` | Pause / resume |
 | `s` | Single-step (while paused) |
-| `+` / `=` | Decrease speed |
-| `-` | Increase speed |
+| `+` | Increase Latency |
+| `-` | Decrease Latency |
 | `q` / `Esc` | Quit |
 
 ## ISA coverage
