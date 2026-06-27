@@ -6,11 +6,11 @@ RV32I emulator with an interactive terminal debugger, written in C++17.
 
 ## Description
 
-StakRV is a project built to understand RISC-V from the ground up. The CPU core implements the full RV32I integer ISA with a fetch-decode-execute loop, and the TUI is built directly on raw ANSI/VT100 escape codes without any external terminal library.
+StakRV is a hobby project built to understand RISC-V. The CPU core implements the full RV32I integer ISA with a fetch-decode-execute loop, and the TUI is built directly on raw ANSI/VT100 escape codes without any external terminal library.
 
 The debugger shows all 32 registers (with ABI names and decimal hints for small values), a disassembly lookahead window, a stack depth gauge, and per-register write highlighting - registers flash on write and a `<<` marker tracks the last destination. Instruction categories are colour-coded in both the pipeline and register panels. Execution speed is adjustable at runtime.
 
-The goal was to build something I could actually step through hand-assembled RISC-V code with, and learn the ISA in the process.
+The goal was to build something I could actually step through RISC-V code with, and learn the ISA in the process.
 
 ## Building
 
@@ -53,6 +53,18 @@ riscv64-unknown-elf-objcopy -O binary program.elf program.bin
 | `+` | Increase Latency |
 | `-` | Decrease Latency |
 | `q` / `Esc` | Quit |
+
+## Examples
+
+The `examples/` directory has a collection of RV32I programs to try - covering
+loops, recursion, sorting, string ops, and bitwise tricks. Build them all with:
+
+```bash
+cd examples && make
+./build/stakrv examples/fib.bin
+```
+
+See [`examples/README.md`](examples/README.md) for the full list.
 
 ## ISA coverage
 
