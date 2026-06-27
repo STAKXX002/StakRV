@@ -1,2 +1,6 @@
-tests/
+# Build
 build/
+
+# Compiled example binaries
+examples/*.elf
+examples/*.bin
