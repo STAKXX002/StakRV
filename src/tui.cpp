@@ -33,8 +33,8 @@ namespace stakrv {
 static constexpr int TOTAL_W     = 106;
 static constexpr int LEFT_INNER  = 62;
 static constexpr int RIGHT_INNER = 41;
-static constexpr int MIN_ROWS    = 28;
-static constexpr int FLASH_FRAMES = 6;   // frames a changed register stays bright
+static constexpr int MIN_ROWS    = 29;
+static constexpr int FLASH_FRAMES = 10;   // frames a changed register stays bright
 
 // ── ANSI palette ─────────────────────────────────────────────────────────────
 static constexpr const char* DIM     = "\033[2m";
@@ -44,7 +44,8 @@ static constexpr const char* GREEN   = "\033[32m";
 static constexpr const char* CYAN    = "\033[36m";
 static constexpr const char* YELLOW  = "\033[33m";
 static constexpr const char* MAGENTA = "\033[35m";
-static constexpr const char* WHITE   = "\033[97m";   // bright white — flash colour
+static constexpr const char* WHITE   = "\033[97m";   // bright white
+static constexpr const char* FLASH   = "\033[1;7;97m"; // bold + reverse video — flash colour
 static constexpr const char* RED     = "\033[31m";
 
 static constexpr const char* ABI_NAMES[32] = {
@@ -230,8 +231,9 @@ static std::string format_reg_cell(uint32_t idx, uint32_t val,
     o << color << std::setw(4) << std::right << std::setfill(' ')
       << ABI_NAMES[idx] << RESET;
 
-    // Index " x##" (4 chars)
-    o << DIM << " x" << std::setw(2) << std::setfill('0') << idx << RESET;
+    // Index " x##" (4 chars) — bright white during flash, dim otherwise
+    const char* idx_color = (flash_ttl > 0) ? WHITE : DIM;
+    o << idx_color << " x" << std::setw(2) << std::setfill('0') << idx << RESET;
 
     // Hex value " 0xHHHHHHHH" (11 chars)
     o << " ";
@@ -314,15 +316,22 @@ void TUI::render(bool paused, int delay_ms) const {
     //   title_plain = "─[ STAKRV rv32i ]─[ v0.1 ]" = 26 chars
     //   trail = TOTAL_W - 2 - 26 = 78
     {
-        const int trail = TOTAL_W - 2 - 26; // "─[ STAKRV rv32i ]─[ v0.1 ]" = 26 visible chars
-        // Never RESET between ─ characters — keep the whole line in DIM context,
-        // briefly switching to colour only for the bracket *contents*, then back to DIM.
+        // Visible: ╭─[ STAKRV rv32i ]────…────[ v0.1 ]─╮
+        // ╭─[ = 3, " STAKRV rv32i " = 14, ] = 1  → left = 18
+        // [ = 1, " v0.1 " = 6, ]─╮ = 3          → right = 10
+        // trail = TOTAL_W - left - right = 106 - 18 - 10 = 78
+        const int trail = TOTAL_W - 18 - 10;
         ss << DIM << "╭─["
            << RESET << BOLD << CYAN << " STAKRV rv32i " << RESET
-           << DIM << "]─["
+           << DIM << "]" << repeat("─", trail) << "["
            << RESET << " v0.1 "
-           << DIM << "]" << repeat("─", trail) << "╮" << RESET << "\n";
+           << DIM << "]─╮" << RESET << "\n";
     }
+
+    // ── blank spacer row ─────────────────────────────────────────────────────
+    ss << DIM << "│" << RESET
+       << std::string(TOTAL_W - 2, ' ')
+       << DIM << "│\n" << RESET;
 
     // ── status line ──────────────────────────────────────────────────────────
     // ASCII-only icons so every character is exactly 1 terminal column wide.
@@ -423,7 +432,7 @@ void TUI::render(bool paused, int delay_ms) const {
 
     uint32_t sp = cpu_.reg(2);
     for (int i = 0; i < 4; ++i) {
-        uint32_t addr = sp + (i * 4);
+        uint32_t addr = sp - (i * 4);
         char abuf[12];
         std::snprintf(abuf, sizeof(abuf), "0x%08x", addr);
 
@@ -433,9 +442,10 @@ void TUI::render(bool paused, int delay_ms) const {
 
         uint32_t val = 0;
         if (cpu_.peek32(addr, val)) {
-            ss << (i == 0 ? CYAN : "") << DIM;
-            ss << "0x" << std::hex << std::setw(8) << std::setfill('0') << val;
-            ss << RESET;
+            ss << (i == 0 ? BOLD : DIM)
+               << (i == 0 ? CYAN : "")
+               << "0x" << std::hex << std::setw(8) << std::setfill('0') << val
+               << RESET;
         } else {
             ss << DIM << "??????????" << RESET;
         }
